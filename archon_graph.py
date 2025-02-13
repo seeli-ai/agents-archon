@@ -1,4 +1,4 @@
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIModel, OpenAIModelSettings
 from pydantic_ai import Agent, RunContext
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -27,10 +27,17 @@ logfire.configure(send_to_logfire='never')
 
 base_url = os.getenv('BASE_URL', 'https://api.openai.com/v1')
 api_key = os.getenv('LLM_API_KEY', 'no-llm-api-key-provided')
-is_ollama = "localhost" in base_url.lower()
+
+model_settings = OpenAIModelSettings(
+    openai_reasoning_effort='high'  # Options: 'low', 'medium', 'high'
+)
+
 reasoner_llm_model = os.getenv('REASONER_MODEL', 'o3-mini')
 reasoner = Agent(  
-    OpenAIModel(reasoner_llm_model, base_url=base_url, api_key=api_key),
+    OpenAIModel(reasoner_llm_model, 
+                base_url=base_url, 
+                api_key=api_key,
+                settings=model_settings),
     system_prompt='You are an expert at coding AI agents with Pydantic AI and defining the scope for doing so.',  
 )
 
@@ -107,19 +114,15 @@ async def coder_agent(state: AgentState, writer):
         message_history.extend(ModelMessagesTypeAdapter.validate_json(message_row))
 
     # Run the agent in a stream
-    if is_ollama:
-        writer = get_stream_writer()
-        result = await pydantic_ai_coder.run(state['latest_user_message'], deps=deps, message_history= message_history)
-        writer(result.data)
-    else:
-        async with pydantic_ai_coder.run_stream(
-            state['latest_user_message'],
-            deps=deps,
-            message_history= message_history
-        ) as result:
-            # Stream partial text as it arrives
-            async for chunk in result.stream_text(delta=True):
-                writer(chunk)
+
+    async with pydantic_ai_coder.run_stream(
+        state['latest_user_message'],
+        deps=deps,
+        message_history= message_history
+    ) as result:
+        # Stream partial text as it arrives
+        async for chunk in result.stream_text(delta=True):
+            writer(chunk)
 
     # print(ModelMessagesTypeAdapter.validate_json(result.new_messages_json()))
 
@@ -161,18 +164,14 @@ async def finish_conversation(state: AgentState, writer):
         message_history.extend(ModelMessagesTypeAdapter.validate_json(message_row))
 
     # Run the agent in a stream
-    if is_ollama:
-        writer = get_stream_writer()
-        result = await end_conversation_agent.run(state['latest_user_message'], message_history= message_history)
-        writer(result.data)   
-    else: 
-        async with end_conversation_agent.run_stream(
-            state['latest_user_message'],
-            message_history= message_history
-        ) as result:
-            # Stream partial text as it arrives
-            async for chunk in result.stream_text(delta=True):
-                writer(chunk)
+
+    async with end_conversation_agent.run_stream(
+        state['latest_user_message'],
+        message_history= message_history
+    ) as result:
+        # Stream partial text as it arrives
+        async for chunk in result.stream_text(delta=True):
+            writer(chunk)
 
     return {"messages": [result.new_messages_json()]}        
 

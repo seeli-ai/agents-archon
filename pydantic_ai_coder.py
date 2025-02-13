@@ -8,17 +8,20 @@ import httpx
 import os
 
 from pydantic_ai import Agent, ModelRetry, RunContext
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIModel, OpenAIModelSettings
 from openai import AsyncOpenAI
 from supabase import Client
 from typing import List
 
 load_dotenv()
 
-llm = os.getenv('PRIMARY_MODEL', 'gpt-4o-mini')
+llm = os.getenv('CODING_MODEL', 'o3-mini')
 base_url = os.getenv('BASE_URL', 'https://api.openai.com/v1')
 api_key = os.getenv('LLM_API_KEY', 'no-llm-api-key-provided')
-model = OpenAIModel(llm, base_url=base_url, api_key=api_key)
+model_settings = OpenAIModelSettings(
+    openai_reasoning_effort='high'  # Options: 'low', 'medium', 'high'
+)
+model = OpenAIModel(llm, base_url=base_url, api_key=api_key, settings=model_settings)
 
 logfire.configure(send_to_logfire='if-token-present')
 
@@ -47,7 +50,7 @@ an AI agent from scratch for the user.
 
 ~~ STRUCTURE: ~~
 
-When you build an AI agent from scratch, split the agent into this files and give the code for each:
+When you build an AI agent from scratch, split the agent into these files and give the code for each:
 - `agent.py`: The main agent file, which is where the Pydantic AI agent is defined.
 - `agent_tools.py`: A tools file for the agent, which is where all the tool functions are defined. Use this for more complex agents.
 - `agent_prompts.py`: A prompts file for the agent, which includes all system prompts and other prompts used by the agent. Use this when there are many prompts or large ones.
